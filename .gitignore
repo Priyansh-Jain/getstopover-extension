@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# WXT / build output
+.wxt/
+.output/
+dist/
+
+# env
+.env
+.env.*
+
+# misc
+.DS_Store
+*.log

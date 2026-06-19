@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GetStopover panel — preview</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f1f5f9; color: #0f172a; margin: 0; padding: 32px;
+  }
+  .head { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
+  code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  .row { display: flex; gap: 8px; }
+  #url {
+    flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; font-size: 13px;
+  }
+  #go {
+    padding: 8px 16px; border: 0; border-radius: 8px;
+    background: #4f46e5; color: #fff; font-weight: 600; cursor: pointer; font-size: 13px;
+  }
+  #go:hover { background: #4338ca; }
+  #err { max-width: 620px; margin: 14px auto 0; color: #b91c1c; font-size: 13px; }
+  #stage { max-width: 620px; margin: 24px auto 0; display: flex; justify-content: center; }
+
+  /* --- panel styles: mirror of PANEL_CSS in src/content.js --- */
+  .card {
+    width: 320px; background: #fff; color: #0f172a;
+    border: 1px solid #e6e8ec; border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .18);
+    padding: 16px 16px 14px; position: relative;
+  }
+  .close {
+    position: absolute; top: 8px; right: 10px; border: 0;
+    background: transparent; cursor: pointer; font-size: 20px;
+    line-height: 1; color: #94a3b8;
+  }
+  .close:hover { color: #0f172a; }
+  .brand { font-size: 13px; font-weight: 700; color: #4f46e5; }
+  .tag {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    background: #eef2ff; color: #4f46e5; padding: 2px 6px;
+    border-radius: 999px; margin-left: 4px; letter-spacing: .5px;
+  }
+  .route { margin-top: 8px; font-size: 16px; font-weight: 700; }
+  .muted { font-weight: 500; color: #64748b; font-size: 13px; }
+  .lede { margin: 8px 0 10px; font-size: 12.5px; line-height: 1.5; color: #334155; }
+  .programs { list-style: none; margin: 0 0 12px; padding: 0; }
+  .programs li { font-size: 12px; padding: 7px 0; border-top: 1px solid #f1f5f9; }
+  .programs li:first-child { border-top: 0; }
+  .perk { color: #64748b; }
+  .cta {
+    display: block; text-align: center; text-decoration: none;
+    background: #4f46e5; color: #fff; font-size: 13px; font-weight: 600;
+    padding: 10px 12px; border-radius: 10px;
+  }
+  .cta:hover { background: #4338ca; }
+  .note { margin: 10px 0 0; font-size: 10.5px; line-height: 1.45; color: #94a3b8; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>GetStopover panel — visual preview</h1>
+    <p class="sub">Paste a Skyscanner flight URL and press Preview to see the panel.
+    This mirrors <code>src/content.js</code> — no Chrome extension needed.</p>
+    <div class="row">
+      <input id="url" value="https://www.skyscanner.net/transport/flights/nyca/sins/251205/260105/">
+      <button id="go">Preview</button>
+    </div>
+  </div>
+  <div id="err"></div>
+  <div id="stage"></div>
+
+<script>
+  /* Mirror of the panel logic in src/content.js — keep the two in sync. */
+  var STOPOVER_PROGRAMS = [
+    { airline: "Turkish Airlines",   hub: "Istanbul",  perk: "Free hotel (1–2 nights) + Touristanbul city tour" },
+    { airline: "Qatar Airways",      hub: "Doha",      perk: "Stopover hotel from about US$14 per night" },
+    { airline: "Emirates",           hub: "Dubai",     perk: "Dubai Connect — free hotel on eligible long layovers" },
+    { airline: "Etihad",             hub: "Abu Dhabi", perk: "Abu Dhabi stopover — up to 2 free hotel nights" },
+    { airline: "Finnair",            hub: "Helsinki",  perk: "Free Helsinki stopover, up to 5 days" },
+    { airline: "Icelandair",         hub: "Reykjavik", perk: "Iceland stopover at no extra airfare, up to 7 days" },
+    { airline: "TAP Air Portugal",   hub: "Lisbon",    perk: "Lisbon or Porto stopover, up to 5 nights" },
+    { airline: "Singapore Airlines", hub: "Singapore", perk: "Singapore stopover hotel & voucher deals" }
+  ];
+  var SITE_URL = "https://getstopover.com/?utm_source=extension&utm_medium=preview";
+
+  function formatYYMMDD(s) {
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var yy = Number(s.slice(0, 2)), mm = Number(s.slice(2, 4)), dd = Number(s.slice(4, 6));
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+    return dd + " " + months[mm - 1] + " 20" + String(yy).padStart(2, "0");
+  }
+
+  function parseRoute(pathname) {
+    var m = pathname.match(
+      /\/transport\/flights\/([a-z0-9-]+)\/([a-z0-9-]+)\/(\d{6})(?:\/(\d{6}))?/i
+    );
+    if (!m) return null;
+    return {
+      origin: m[1].toUpperCase(),
+      destination: m[2].toUpperCase(),
+      departDate: formatYYMMDD(m[3]),
+      returnDate: m[4] ? formatYYMMDD(m[4]) : null
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function panelHtml(route) {
+    var dates = route.returnDate
+      ? escapeHtml(route.departDate + " – " + route.returnDate)
+      : (route.departDate ? escapeHtml(route.departDate) : "");
+    var programItems = STOPOVER_PROGRAMS.slice(0, 4).map(function (p) {
+      return "<li><strong>" + escapeHtml(p.airline) + "</strong> · " + escapeHtml(p.hub) +
+        "<br><span class=\"perk\">" + escapeHtml(p.perk) + "</span></li>";
+    }).join("");
+    return "<div class=\"card\">" +
+        "<button class=\"close\" title=\"Dismiss\">×</button>" +
+        "<div class=\"brand\">✈ GetStopover <span class=\"tag\">prototype</span></div>" +
+        "<div class=\"route\">" + escapeHtml(route.origin) + " → " +
+          escapeHtml(route.destination) +
+          (dates ? " · <span class=\"muted\">" + dates + "</span>" : "") +
+        "</div>" +
+        "<p class=\"lede\">Long-haul trips like this can often be routed through a " +
+          "hub city for a <strong>free multi-day stopover</strong> — hotel and " +
+          "city tour included — at little or no extra airfare.</p>" +
+        "<ul class=\"programs\">" + programItems + "</ul>" +
+        "<a class=\"cta\" href=\"" + SITE_URL + "\" target=\"_blank\" rel=\"noopener\">" +
+          "Check if your trip qualifies →</a>" +
+        "<p class=\"note\">Prototype — route-level guidance only. The full version " +
+          "checks your exact itinerary, fare class and passport.</p>" +
+      "</div>";
+  }
+
+  function render() {
+    var raw = document.getElementById("url").value.trim();
+    var pathname = raw;
+    try { pathname = new URL(raw).pathname; } catch (e) { /* treat raw as a path */ }
+    var route = parseRoute(pathname);
+    var err = document.getElementById("err");
+    var stage = document.getElementById("stage");
+    if (!route) {
+      err.textContent = "That doesn't look like a Skyscanner flight-search URL " +
+        "(expected …/transport/flights/{from}/{to}/{YYMMDD}/).";
+      stage.innerHTML = "";
+      return;
+    }
+    err.textContent = "";
+    stage.innerHTML = panelHtml(route);
+    var close = stage.querySelector(".close");
+    if (close) close.addEventListener("click", function () { stage.innerHTML = ""; });
+  }
+
+  document.getElementById("go").addEventListener("click", render);
+  document.getElementById("url").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") render();
+  });
+  render();
+</script>
+</body>
+</html>

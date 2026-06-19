@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "GetStopover — Stopover Finder",
+  "version": "0.1.0",
+  "description": "Spots airline stopover programmes (free hotel + city tour) while you search flights on Skyscanner.",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.skyscanner.net/transport/flights/*",
+        "*://www.skyscanner.com/transport/flights/*",
+        "*://www.skyscanner.co.uk/transport/flights/*",
+        "*://www.skyscanner.co.in/transport/flights/*"
+      ],
+      "js": ["src/content.js", "src/skyscanner-cards.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "GetStopover"
+  }
+}
