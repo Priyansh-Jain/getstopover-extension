@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <title>GetStopover</title>
   <style>
-    body { width: 280px; margin: 0;
+    body { width: 300px; margin: 0;
            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
            color: #0f172a; }
     .wrap { padding: 16px; }
@@ -13,9 +13,21 @@
            background: #eef2ff; color: #4f46e5; padding: 2px 6px;
            border-radius: 999px; margin-left: 4px; letter-spacing: .5px; }
     h1 { font-size: 15px; margin: 12px 0 6px; }
-    p { font-size: 12.5px; line-height: 1.5; color: #334155; margin: 0 0 10px; }
-    ol { font-size: 12px; color: #334155; padding-left: 18px; margin: 0 0 12px; }
-    ol li { margin: 4px 0; }
+    p { font-size: 12.5px; line-height: 1.5; color: #334155; margin: 0 0 12px; }
+    p b { color: #0f172a; }
+    label.fld { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+                letter-spacing: .4px; color: #64748b; margin: 0 0 5px; }
+    select { width: 100%; font-size: 13px; padding: 8px 9px; border: 1px solid #d8dee8;
+             border-radius: 9px; background: #fff; color: #0f172a; }
+    .hint { font-size: 11px; color: #94a3b8; margin: 5px 0 14px; }
+    .opt { display: flex; align-items: flex-start; gap: 9px; background: #f8fafc;
+           border: 1px solid #eef2f7; border-radius: 10px; padding: 10px 11px;
+           margin: 0 0 12px; cursor: pointer; }
+    .opt input { margin: 2px 0 0; flex: none; }
+    .opt .lab { font-size: 12px; }
+    .opt .lab b { font-weight: 700; }
+    .opt .lab span { color: #64748b; display: block; margin-top: 3px;
+                     font-size: 11px; line-height: 1.45; }
     a.cta { display: block; text-align: center; text-decoration: none;
             background: #4f46e5; color: #fff; font-weight: 600; font-size: 13px;
             padding: 9px; border-radius: 9px; }
@@ -23,18 +35,61 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="brand">✈ GetStopover <span class="tag">prototype</span></div>
+    <div class="brand">✈ GetStopover</div>
     <h1>Free stopovers, spotted as you search</h1>
-    <p>This prototype watches your <strong>Skyscanner</strong> flight searches and
-    points out when a route could include a free multi-day stopover — hotel and
-    city tour included.</p>
-    <ol>
-      <li>Open <strong>skyscanner.net</strong></li>
-      <li>Search any long-haul flight</li>
-      <li>The GetStopover panel appears at the bottom-right</li>
-    </ol>
+    <p>Works on <b>Google Flights</b>, <b>Skyscanner</b>, <b>Kayak</b>, <b>Expedia</b>,
+       <b>Trip.com</b> and <b>Kiwi.com</b>. A chip appears on results that route through
+       a stopover hub. Click it for the full breakdown in the panel.</p>
+
+    <label class="fld" for="passport">Your passport</label>
+    <select id="passport">
+      <option value="">— Select nationality —</option>
+      <option value="AE">United Arab Emirates</option>
+      <option value="AU">Australia</option>
+      <option value="BR">Brazil</option>
+      <option value="CA">Canada</option>
+      <option value="CN">China</option>
+      <option value="DE">Germany</option>
+      <option value="ES">Spain</option>
+      <option value="FR">France</option>
+      <option value="GB">United Kingdom</option>
+      <option value="ID">Indonesia</option>
+      <option value="IE">Ireland</option>
+      <option value="IN">India</option>
+      <option value="IT">Italy</option>
+      <option value="JP">Japan</option>
+      <option value="KR">South Korea</option>
+      <option value="MX">Mexico</option>
+      <option value="MY">Malaysia</option>
+      <option value="NG">Nigeria</option>
+      <option value="NL">Netherlands</option>
+      <option value="NZ">New Zealand</option>
+      <option value="PH">Philippines</option>
+      <option value="PK">Pakistan</option>
+      <option value="PL">Poland</option>
+      <option value="RU">Russia</option>
+      <option value="SA">Saudi Arabia</option>
+      <option value="SE">Sweden</option>
+      <option value="SG">Singapore</option>
+      <option value="TH">Thailand</option>
+      <option value="TR">Turkey</option>
+      <option value="US">United States</option>
+      <option value="ZA">South Africa</option>
+    </select>
+    <p class="hint">Used only to check your transit-visa verdict. No account, no cookies, no tracking.</p>
+
+    <label class="opt">
+      <input type="checkbox" id="confident">
+      <span class="lab"><b>I'm a confident traveler</b>
+        <span>Trims the airport return-buffer ~30&nbsp;min, so "usable in city"
+        hours go up. Default is conservative: it matches the 3-hour international
+        departure standard.</span>
+      </span>
+    </label>
+
     <a class="cta" href="https://getstopover.com/?utm_source=extension&utm_medium=popup"
        target="_blank" rel="noopener">Open GetStopover →</a>
   </div>
+  <script src="../dist/popup.js"></script>
 </body>
 </html>

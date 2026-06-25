@@ -1,22 +1,53 @@
 {
   "manifest_version": 3,
-  "name": "GetStopover — Stopover Finder",
-  "version": "0.1.0",
-  "description": "Spots airline stopover programmes (free hotel + city tour) while you search flights on Skyscanner.",
+  "name": "GetStopover – Stopover, Transit Visa & Layover Helper",
+  "version": "1.0.0",
+  "description": "Spot free-hotel stopovers, transit-visa traps, self-transfers and tight layovers on Google Flights, Skyscanner, Kayak & more.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://getstopover.com/*", "https://www.getstopover.com/*"],
   "content_scripts": [
     {
       "matches": [
         "*://www.skyscanner.net/transport/flights/*",
         "*://www.skyscanner.com/transport/flights/*",
         "*://www.skyscanner.co.uk/transport/flights/*",
-        "*://www.skyscanner.co.in/transport/flights/*"
+        "*://www.skyscanner.co.in/transport/flights/*",
+        "*://www.google.com/travel/flights*",
+        "*://www.google.co.uk/travel/flights*",
+        "*://www.google.co.in/travel/flights*",
+        "*://www.google.ca/travel/flights*",
+        "*://www.google.com.au/travel/flights*",
+        "*://www.kayak.com/flights/*",
+        "*://www.kayak.co.uk/flights/*",
+        "*://www.kayak.co.in/flights/*",
+        "*://www.expedia.com/Flight*Search*",
+        "*://www.expedia.co.uk/Flight*Search*",
+        "*://www.expedia.ca/Flight*Search*",
+        "*://www.expedia.com.au/Flight*Search*",
+        "*://www.expedia.co.in/Flight*Search*",
+        "*://*.trip.com/flights/*",
+        "*://www.kiwi.com/*/search/*"
       ],
-      "js": ["src/content.js", "src/skyscanner-cards.js"],
+      "js": [
+        "dist/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "GetStopover"
+    "default_title": "GetStopover",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }
