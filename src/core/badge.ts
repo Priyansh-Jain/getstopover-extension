@@ -23,7 +23,7 @@ function fmtHm(min: number): string {
 
 function label(v: Verdict): string {
   if (v.selfTransfer) return "⚠ " + v.city + " stopover needs one ticket";
-  if (v.confidence === "green") return "✓ " + v.city + " stopover — you qualify";
+  if (v.confidence === "green") return "✓ " + v.city + " stopover, you qualify";
   if (v.confidence === "amber") return "✈ " + v.city + " stopover possible";
   return "✈ " + v.city + " stopover?";
 }
@@ -86,7 +86,7 @@ function addRiskBadge(cardEl: HTMLElement, rv: RiskVerdict, pos?: "top" | "botto
   var hook = rv.layoverMin != null
     ? " · only " + fmtHm(rv.layoverMin) + " here, very tight"
     : " · clear immigration + re-check bags";
-  var text = "⚠ " + rv.city + (rv.country === "US" ? " — US border stop" : " — Canada border stop") + hook;
+  var text = "⚠ " + rv.city + (rv.country === "US" ? ", US border stop" : ", Canada border stop") + hook;
   renderChip(cardEl, "risk", RISK_COLOR, text, "Click for transit details",
     function () { panel.showRisk(rv); }, pos, inline);
 }
@@ -95,7 +95,7 @@ function addFitBadge(cardEl: HTMLElement, fv: FitVerdict, pos?: "top" | "bottom"
   var color = fv.severity === "red" ? RISK_COLOR : COLORS.amber;
   var tail = fv.selfTransfer ? "self-transfer, very tight"
     : fv.severity === "red" ? "may be too short" : "tight connection";
-  var text = "⚠ " + fmtHm(fv.layoverMin) + " at " + fv.airport + " — " + tail;
+  var text = "⚠ " + fmtHm(fv.layoverMin) + " at " + fv.airport + ": " + tail;
   renderChip(cardEl, "fit", color, text, "Click for connection details",
     function () { panel.showFit(fv); }, pos, inline);
 }
@@ -105,11 +105,11 @@ function addBagBadge(cardEl: HTMLElement, bv: BagVerdict, pos?: "top" | "bottom"
   var color = red ? RISK_COLOR : COLORS.amber;
   var text;
   if (bv.kind === "customs") {
-    text = "🧳 Re-check bags at " + bv.hub + " — " + (bv.country === "US" ? "US" : "Canada") + " customs";
+    text = "🧳 Re-check bags at " + bv.hub + ", " + (bv.country === "US" ? "US" : "Canada") + " customs";
   } else if (bv.layoverMin != null && bv.tight) {
-    text = "🧳 Separate tickets, " + fmtHm(bv.layoverMin) + " — collect & re-check, tight";
+    text = "🧳 Separate tickets, " + fmtHm(bv.layoverMin) + ": collect & re-check, tight";
   } else {
-    text = "🧳 Separate tickets — collect & re-check your bags";
+    text = "🧳 Separate tickets: collect & re-check your bags";
   }
   renderChip(cardEl, "bags", color, text, "Click for baggage details",
     function () { panel.showBags(bv); }, pos, inline);
