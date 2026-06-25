@@ -19,7 +19,7 @@ const HOST_ID = "getstopover-panel-host";
 const BASE = "https://www.getstopover.com/programs/";
 const UTM = "?utm_source=extension&utm_medium=panel";
 const DOT: Record<string, string> = { green: "#16a34a", amber: "#d97706", grey: "#64748b" };
-const EST_TIP = "Approximate — layover minus airport exit, the round-trip to the city centre, and a " +
+const EST_TIP = "Approximate: layover minus airport exit, the round-trip to the city centre, and a " +
   "conservative return buffer (matches the ~3h international-departure standard). Tune it with the " +
   "\"I'm a confident traveler\" toggle in the GetStopover popup.";
 const CONF_TIP = "Stopover & fare eligibility for this itinerary (hub, layover, ticket). Separate from the " +
@@ -99,9 +99,9 @@ function fmtLayover(min: number | null): string | null {
 }
 
 function confText(v: Verdict): string {
-  if (v.confidence === "green") return "Confirmed — you qualify";
-  if (v.confidence === "amber") return "Likely eligible — verify your fare";
-  return "Programme exists — unverified for this trip";
+  if (v.confidence === "green") return "Confirmed: you qualify";
+  if (v.confidence === "amber") return "Likely eligible: verify your fare";
+  return "Programme exists: unverified for this trip";
 }
 
 function ensure(): void {
@@ -140,7 +140,7 @@ function passportName(code: string | null | undefined): string {
 
 function passportOptions(): string {
   var cur = settings.passport || "";
-  var out = ['<option value="">— your passport —</option>'];
+  var out = ['<option value="">Select your passport</option>'];
   for (var i = 0; i < PASSPORTS.length; i++) {
     var c = PASSPORTS[i][0], n = PASSPORTS[i][1];
     out.push('<option value="' + c + '"' + (c === cur ? " selected" : "") + ">" + esc(n) + "</option>");
@@ -169,7 +169,7 @@ function visaRow(v: Verdict): string {
   } else {
     return '<div class="row"><span class="k">Transit visa</span><span class="v">' +
       '<a class="gs-visalink" href="' + programUrl(v.slug) + '" target="_blank" rel="noopener" ' +
-      'title="Transit-visa rules are nationality-specific. Check the program page for your passport — a wrong ' +
+      'title="Transit-visa rules are nationality-specific. Check the program page for your passport. A wrong ' +
       'visa-free assumption can mean being denied boarding.">check for your passport →</a></span></div>';
   }
   return '<div class="row"><span class="k">Transit visa</span><span class="v">' + val + "</span></div>";
@@ -183,19 +183,19 @@ function bodyHtml(v: Verdict): string {
   if (lay) html.push(row("Layover", lay + " in " + v.city));
   if (v.usableHours != null) {
     var uv = v.usableHours > 0 ? "~" + v.usableHours + "h" : "too tight";
-    var tip = EST_TIP + (settings.confidentTraveler ? " (Confident-traveler trim is on — buffers cut 30 min.)" : "");
+    var tip = EST_TIP + (settings.confidentTraveler ? " (Confident-traveler trim is on, buffers cut 30 min.)" : "");
     html.push('<div class="row"><span class="k">Usable in city</span><span class="v">' + uv +
       ' <span class="est" title="' + esc(tip) + '">ⓘ estimate</span></span></div>');
   }
   if (v.hotelModel === "free" && v.hotelValueUSD) {
     html.push(row("Free hotel", "up to ~$" + v.hotelValueUSD + (v.hotelConditional ? " (if eligible)" : "")));
   } else if (v.hotelModel === "no-airfare-only") {
-    html.push(row("Hotel", "not included — free stopover = no extra airfare"));
+    html.push(row("Hotel", "not included: free stopover = no extra airfare"));
   }
   if (v.freeTours) html.push(row("Free city tour", "yes"));
   html.push(visaRow(v));
   if (v.otherHubs && v.otherHubs.length) {
-    html.push('<div style="font-size:11px;font-weight:600;color:#92400e;margin:6px 0">This itinerary also stops in ' + esc(v.otherHubs.join(", ")) + '. The transit-visa line above is for ' + esc(v.city) + ' only — check the other hub(s) separately.</div>');
+    html.push('<div style="font-size:11px;font-weight:600;color:#92400e;margin:6px 0">This itinerary also stops in ' + esc(v.otherHubs.join(", ")) + '. The transit-visa line above is for ' + esc(v.city) + ' only. Check the other hub(s) separately.</div>');
   }
   if (v.maxDays) html.push(row("Max stay", v.maxDays + " day" + (v.maxDays > 1 ? "s" : "")));
   if (v.reasons && v.reasons.length) {
@@ -297,7 +297,7 @@ function showRisk(rv: RiskVerdict): void {
   collapsed = false;
   root.querySelector(".wrap")!.setAttribute("data-collapsed", "false");
   (root.querySelector(".dot")! as HTMLElement).style.background = "#dc2626";
-  root.querySelector(".ttl")!.textContent = rv.city + " — transit alert";
+  root.querySelector(".ttl")!.textContent = rv.city + ": transit alert";
   root.querySelector(".body")!.innerHTML = riskBodyHtml(rv);
 }
 
@@ -318,7 +318,7 @@ function fitBodyHtml(fv: FitVerdict): string {
     reasons.push("Separate tickets, so you must collect your bags, exit, re-check, and re-clear security, with no rebooking if the first flight is late. Budget ~" + hm(fv.needMin) + "+.");
   } else {
     reasons.push("~" + hm(fv.parts.base) + " base: deplane and walk to a different gate, and boarding closes ~20-40 min before departure.");
-    if (fv.parts.intl) reasons.push("+~" + hm(fv.parts.intl) + ": international transfer — security re-screen, longer terminal walks, earlier boarding close.");
+    if (fv.parts.intl) reasons.push("+~" + hm(fv.parts.intl) + ": international transfer, security re-screen, longer terminal walks, earlier boarding close.");
     if (fv.parts.mega) reasons.push("+~" + hm(fv.parts.mega) + ": " + esc(fv.airport) + " is a large, spread-out hub.");
   }
   reasons.push("A terminal change (e.g. T2 to T5) would add more, but the search page doesn't show terminals, so this estimate can't include it.");
@@ -353,11 +353,11 @@ function bagBodyHtml(bv: BagVerdict): string {
     reasons.push("You also clear immigration here, so you need an ESTA or visa to enter.");
     reasons.push("Budget ~2-3 hours." + (bv.layoverMin != null ? " You have about " + hm(bv.layoverMin) + " here." : ""));
   } else {
-    html.push('<div class="conf" style="color:' + color + '">Separate tickets — re-check your bags</div>');
+    html.push('<div class="conf" style="color:' + color + '">Separate tickets: re-check your bags</div>');
     html.push('<div class="prog">Your bag is NOT checked through</div>');
     html.push('<div class="whyhd">Why this matters:</div>');
     reasons.push("These are separate tickets, so at " + esc(bv.hub || "the connection") + " you collect your bag, exit, and re-check it for the next flight.");
-    reasons.push("If the first flight is late, no one re-books you and your bag won't make it — you'd have to buy a new ticket.");
+    reasons.push("If the first flight is late, no one re-books you and your bag won't make it, so you'd have to buy a new ticket.");
     if (bv.layoverMin != null && bv.tight) reasons.push("You have only " + hm(bv.layoverMin) + " here, which is very tight for collecting and re-checking a bag.");
   }
   html.push('<ul class="why">' + reasons.map(function (r) { return "<li>" + r + "</li>"; }).join("") + "</ul>");

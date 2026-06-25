@@ -142,29 +142,29 @@ function evaluateCard(card: Card | null): Verdict | null {
       var hotelConditional = !!(elig.fareFloorUSD || p.exclFares.length);
 
       var reasons: string[] = [];
-      if (stIneligible) reasons.push("This is a self-transfer (separate tickets) — the perk needs ONE through-ticket on " + p.airline + ", so it won't apply to this itinerary as booked.");
+      if (stIneligible) reasons.push("This is a self-transfer (separate tickets): the perk needs ONE through-ticket on " + p.airline + ", so it won't apply to this itinerary as booked.");
       if (!p.carrierAgnostic) {
-        reasons.push("Book directly with " + p.airline + " — booking here on an OTA/aggregator (Skyscanner, Kayak, Google Flights) usually voids the free stopover perk.");
-        reasons.push("One through-ticket on " + p.airline + " — a self-transfer (separate tickets) won't qualify, and loses missed-connection protection.");
+        reasons.push("Book directly with " + p.airline + ". Booking here on an OTA/aggregator (Skyscanner, Kayak, Google Flights) usually voids the free stopover perk.");
+        reasons.push("One through-ticket on " + p.airline + ": a self-transfer (separate tickets) won't qualify, and loses missed-connection protection.");
       }
       if (p.exclFares.length) {
-        reasons.push("Fare classes " + p.exclFares.join("/") + " are excluded — verify yours isn't one.");
+        reasons.push("Fare classes " + p.exclFares.join("/") + " are excluded. Verify yours isn't one.");
       } else if (!p.carrierAgnostic) {
         reasons.push("Verify your fare class qualifies.");
       }
-      if (elig.fareFloorUSD) reasons.push("Needs a base fare around $" + elig.fareFloorUSD + "+ — the cheapest fares are often excluded.");
+      if (elig.fareFloorUSD) reasons.push("Needs a base fare around $" + elig.fareFloorUSD + "+. The cheapest fares are often excluded.");
       if (elig.awardExcluded) reasons.push("Award / miles tickets don't qualify.");
       if (mode === "tour") {
         reasons.push("Layover fits the free city tour (" + tourMin + "–" + tourMax + "h); the free hotel needs a longer stop.");
       }
       if (mode === "unknown") {
-        reasons.push("Layover length wasn't readable here — qualifies on " + hotelMin + "–" + hotelMax + "h" +
+        reasons.push("Layover length wasn't readable here. Qualifies on " + hotelMin + "–" + hotelMax + "h" +
           (hasTour && tourMin != null && tourMin < hotelMin ? " (free tour from " + tourMin + "h)" : "") + ".");
       }
-      if (elig.shortestConnRule) reasons.push("The free hotel needs the SHORTEST same-day connection — deliberately picking a longer layover can void it.");
-      if (elig.applyDeadlineH) reasons.push("Add it before you buy — request at least " + elig.applyDeadlineH + "h before departure.");
+      if (elig.shortestConnRule) reasons.push("The free hotel needs the SHORTEST same-day connection. Deliberately picking a longer layover can void it.");
+      if (elig.applyDeadlineH) reasons.push("Add it before you buy: request at least " + elig.applyDeadlineH + "h before departure.");
       if (p.freeHotel && !p.carrierAgnostic) {
-        reasons.push("Claim only on the airline's official site — beware lookalike sites/ads and bogus \"verification fee\" requests.");
+        reasons.push("Claim only on the airline's official site. Beware lookalike sites/ads and bogus \"verification fee\" requests.");
       }
 
       verdicts.push({
