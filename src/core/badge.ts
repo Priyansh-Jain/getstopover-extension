@@ -43,7 +43,9 @@ function renderChip(
 ): void {
   if (cardEl.querySelector("[" + ATTR + "]")) return;
   try {
-    if (getComputedStyle(cardEl).position === "static") cardEl.style.position = "relative";
+    var cs = getComputedStyle(cardEl);
+    if (cs.position === "static") cardEl.style.position = "relative";
+    if (cs.zIndex === "auto") cardEl.style.zIndex = "0";
   } catch (e) { /* ignore */ }
   if (inline) cardEl.style.paddingTop = INLINE_H + "px";
 

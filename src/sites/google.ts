@@ -69,12 +69,12 @@ function parse(label: string, text: string): Card {
   label = label || "";
   text = text || "";
 
-  // (A) Visible row text: "10 hr 55 min DOH" — duration immediately before the
-  // hub code. Total trip duration has no code after it, so it's never matched.
-  var re = /(\d+)\s*hr(?:\s*(\d+)\s*min)?\s+([A-Z]{3})\b/g, m: RegExpExecArray | null;
+  // (A) Visible row text: "10 hr 55 min DOH" or a sub-hour "50 min DOH" — duration
+  // immediately before the hub code. Total trip duration has no code after it, so it's never matched.
+  var re = /(\d+\s*hrs?(?:\s*\d+\s*mins?)?|\d+\s*mins?)\s+([A-Z]{3})\b/g, m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    if (!codeSet[m[3]]) continue;
-    addStop(out, m[3], parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0));
+    if (!codeSet[m[2]]) continue;
+    addStop(out, m[2], durMin(m[1]));
   }
 
   // (B) aria-label: text window after each "Layover" mention.
@@ -85,7 +85,7 @@ function parse(label: string, text: string): Card {
   }
 
   // (C) Expanded view: "<dur> layover ... <hub>" — duration split from the code.
-  var reC = /(\d+)\s*hr(?:\s*(\d+)\s*min)?\s+layover/gi, mc: RegExpExecArray | null;
+  var reC = /(\d+)\s*hrs?(?:\s*(\d+)\s*mins?)?\s+layover/gi, mc: RegExpExecArray | null;
   var hay = text + "\n" + label;
   while ((mc = reC.exec(hay))) {
     var win = hay.slice(mc.index, mc.index + 100);
@@ -136,9 +136,9 @@ function connectionsFrom(text: string, label: string, origin: string | null, des
     return out;
   }
   // Single stop: "10 hr 55 min DOH" (collapsed) or "... layover ... (DOH)" (expanded).
-  var reA = /(\d+\s*hr(?:\s*\d+\s*min)?|\d+\s*min)\s+([A-Z]{3})\b/g, m: RegExpExecArray | null;
+  var reA = /(\d+\s*hrs?(?:\s*\d+\s*mins?)?|\d+\s*mins?)\s+([A-Z]{3})\b/g, m: RegExpExecArray | null;
   while ((m = reA.exec(text))) add(m[2], durMin(m[1]));
-  var reC = /(\d+\s*hr(?:\s*\d+\s*min)?|\d+\s*min)\s+layover/gi, mc: RegExpExecArray | null;
+  var reC = /(\d+\s*hrs?(?:\s*\d+\s*mins?)?|\d+\s*mins?)\s+layover/gi, mc: RegExpExecArray | null;
   while ((mc = reC.exec(text))) {
     var win = text.slice(mc.index, mc.index + 120);
     var cm = win.match(/\(([A-Z]{3})\)|\b([A-Z]{3})\b/);
@@ -154,6 +154,14 @@ function parseCard(el: HTMLElement): Card | null {
   var parsed = parse(label, text);
   var rm = text.toUpperCase().match(/\b([A-Z]{3})[–-]([A-Z]{3})\b/);
   var origin = rm ? rm[1] : null, dest = rm ? rm[2] : null;
+  if (!origin || !dest) {
+    var paren = text.toUpperCase().match(/\(([A-Z]{3})\)/g) || [];
+    var pf = paren[0], pl = paren[paren.length - 1];
+    if (paren.length >= 2 && pf && pl) {
+      if (!origin) origin = pf.slice(1, 4);
+      if (!dest) dest = pl.slice(1, 4);
+    }
+  }
   parsed.origin = origin || undefined;
   parsed.dest = dest || undefined;
   parsed.connections = connectionsFrom(text, label, origin, dest);

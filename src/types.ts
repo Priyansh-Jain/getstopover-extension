@@ -135,6 +135,7 @@ export interface Adapter {
   badgePos?: "top" | "bottom";
   badgeAnchor?: (cardEl: HTMLElement) => HTMLElement | null;
   badgeInline?: boolean;
+  skipRot?: () => boolean;
 }
 
 export interface Settings {

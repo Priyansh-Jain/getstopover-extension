@@ -7,7 +7,7 @@
  * three sites are single-page apps that stream results in) with a debounce, plus
  * a slow safety interval.
  */
-import type { Adapter, Confidence } from "../types";
+import type { Adapter, BagVerdict, Confidence, FitVerdict, RiskVerdict, Verdict } from "../types";
 import { engine } from "./engine";
 import { risk } from "./risk";
 import { bags } from "./bags";
@@ -62,6 +62,34 @@ function dedupeNested(cards: HTMLElement[]): HTMLElement[] {
   });
 }
 
+type StampKind = "verdict" | "risk" | "bags" | "fit";
+interface Keeper {
+  card: HTMLElement;
+  kind: StampKind;
+  data: Verdict | RiskVerdict | BagVerdict | FitVerdict;
+}
+var keepers: Keeper[] = [];
+
+function remember(card: HTMLElement, kind: StampKind, data: Verdict | RiskVerdict | BagVerdict | FitVerdict): void {
+  for (var i = 0; i < keepers.length; i++) {
+    if (keepers[i].card === card) { keepers[i].kind = kind; keepers[i].data = data; return; }
+  }
+  keepers.push({ card: card, kind: kind, data: data });
+}
+
+function reStamp(ad: Adapter): void {
+  for (var i = keepers.length - 1; i >= 0; i--) {
+    var k = keepers[i];
+    if (!document.contains(k.card)) { keepers.splice(i, 1); continue; }
+    var anchor = ad.badgeAnchor ? (ad.badgeAnchor(k.card) || k.card) : k.card;
+    if (anchor.querySelector("[data-getstopover-badge]")) continue;
+    if (k.kind === "verdict") badge.addBadge(anchor, k.data as Verdict, ad.badgePos, ad.badgeInline);
+    else if (k.kind === "risk") badge.addRiskBadge(anchor, k.data as RiskVerdict, ad.badgePos, ad.badgeInline);
+    else if (k.kind === "bags") badge.addBagBadge(anchor, k.data as BagVerdict, ad.badgePos, ad.badgeInline);
+    else if (k.kind === "fit") badge.addFitBadge(anchor, k.data as FitVerdict, ad.badgePos, ad.badgeInline);
+  }
+}
+
 function scan(): void {
   var ad = activeAdapter();
   if (!ad) return;
@@ -73,7 +101,8 @@ function scan(): void {
   try { cards = ad.findCards(); } catch (e) { cards = []; }
 
   var rot = false;
-  if (cards.length === 0 && Date.now() - urlSince > ROT_GRACE_MS) {
+  var rotAllowed = !(ad.skipRot && ad.skipRot());
+  if (rotAllowed && cards.length === 0 && Date.now() - urlSince > ROT_GRACE_MS) {
     var broad = broadCards();
     if (broad.length >= ROT_MIN_BROAD) {
       cards = broad; // best-effort: parseCard skips anything that isn't a real card
@@ -101,15 +130,16 @@ function scan(): void {
       var v = engine.evaluateCard(parsed);
       if (v) {
         badge.addBadge(anchor, v, ad.badgePos, ad.badgeInline);
+        remember(cards[i], "verdict", v);
         counts[v.confidence]++;
         badged++;
       } else {
         var rv = risk.evaluate(parsed);
         var bv = rv ? null : bags.evaluate(parsed);
         var fv = rv || bv ? null : fit.evaluate(parsed);
-        if (rv) { badge.addRiskBadge(anchor, rv, ad.badgePos, ad.badgeInline); risks++; }
-        else if (bv) { badge.addBagBadge(anchor, bv, ad.badgePos, ad.badgeInline); bagN++; }
-        else if (fv) { badge.addFitBadge(anchor, fv, ad.badgePos, ad.badgeInline); fits++; }
+        if (rv) { badge.addRiskBadge(anchor, rv, ad.badgePos, ad.badgeInline); remember(cards[i], "risk", rv); risks++; }
+        else if (bv) { badge.addBagBadge(anchor, bv, ad.badgePos, ad.badgeInline); remember(cards[i], "bags", bv); bagN++; }
+        else if (fv) { badge.addFitBadge(anchor, fv, ad.badgePos, ad.badgeInline); remember(cards[i], "fit", fv); fits++; }
       }
     } catch (e) { /* skip this card */ }
   }
@@ -126,6 +156,7 @@ function clearBadges(): void {
 
 // Re-render all chips (used when a setting changes, e.g. the buffer toggle).
 export function rescan(): void {
+  keepers = [];
   clearBadges();
   scan();
 }
@@ -145,7 +176,11 @@ function schedule(): void {
 
 export function startScanner(): void {
   try {
-    new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    new MutationObserver(function () {
+      var ad = activeAdapter();
+      if (ad) reStamp(ad);
+      schedule();
+    }).observe(document.documentElement, { childList: true, subtree: true });
   } catch (e) { /* ignore */ }
   setInterval(schedule, 3000);
   schedule();

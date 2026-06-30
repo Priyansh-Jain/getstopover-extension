@@ -3,8 +3,9 @@
  *
  * Connection detection is scoped to stop-specific elements AND excludes the
  * searched origin/destination, so flying TO a hub no longer false-badges.
- * Layover-duration reading is OFF until the live-DOM probe confirms the source
- * (guessing risks mis-reading the total trip duration) -> engine shows GREY.
+ * The results-list card exposes only the TOTAL trip time, not per-stop layover.
+ * The expanded itinerary view does expose it (e.g. "Connection in airport. X hours
+ * Y minutes between flights"), so we read layover duration there instead.
  */
 import type { Card } from "../types";
 import { programs } from "../data/programs";
@@ -20,6 +21,8 @@ var KNOWN: Record<string, boolean> = {};
 programs.forEach(function (p) { KNOWN[p.airport] = true; });
 
 function findCards(): HTMLElement[] {
+  var det = detailItineraries();
+  if (det.length) return det;
   var c = document.querySelectorAll('[data-testid="ticket"]');
   if (c.length) return Array.prototype.slice.call(c) as HTMLElement[];
   c = document.querySelectorAll('[class*="FlightsTicket_container"]');
@@ -82,7 +85,60 @@ function naStopCodes(cardEl: HTMLElement, r: Route): string[] {
   return naStopsFromCodes(codes, r.origin, r.destination);
 }
 
+function detailItineraries(): HTMLElement[] {
+  var out: HTMLElement[] = [];
+  var wraps = document.querySelectorAll('[class*="Itinerary_itineraryWrapper"]');
+  for (var i = 0; i < wraps.length; i++) {
+    var el = wraps[i] as HTMLElement;
+    if (/between flights/i.test(el.textContent || "")) out.push(el);
+  }
+  return out;
+}
+
+function isItinerary(el: HTMLElement): boolean {
+  var cls = typeof el.className === "string" ? el.className : "";
+  return /Itinerary_itineraryWrapper/.test(cls) && /between flights/i.test(el.textContent || "");
+}
+
+function parseItinerary(wrapEl: HTMLElement): Card | null {
+  var text = (wrapEl.innerText || wrapEl.textContent || "").replace(/\s+/g, " ");
+  var connections: { code: string; min: number }[] = [], stops: string[] = [];
+  var layovers: Record<string, number> = {};
+  var re = /\b([A-Z]{3})\b[^.\d]{0,90}?connection[^.\d]{0,20}\.\s*(?:(\d+)\s*hours?)?\s*(?:(\d+)\s*minutes?)?\s*between flights/gi;
+  var m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    var code = m[1];
+    if (!code) continue;
+    var min = (m[2] ? parseInt(m[2], 10) : 0) * 60 + (m[3] ? parseInt(m[3], 10) : 0);
+    if (min <= 0) continue;
+    connections.push({ code: code, min: min });
+    layovers[code] = min;
+    if (stops.indexOf(code) === -1) stops.push(code);
+  }
+  if (!connections.length) return null;
+
+  var outbound = text.split(/\bReturn\b|\bInbound\b/i)[0] || "";
+  var codes = outbound.match(/\b[A-Z]{3}\b/g) || [];
+  var origin = codes.length ? codes[0] : undefined;
+  var dest = codes.length ? codes[codes.length - 1] : undefined;
+
+  var names: string[] = [], cseen: Record<string, boolean> = {};
+  var cre = /(?:Leg \d+,|flight with)\s+([A-Z][A-Za-z][A-Za-z .'&-]{2,38}?)(?:\.|,|\s+Flight number)/g;
+  var cm: RegExpExecArray | null;
+  while ((cm = cre.exec(text))) {
+    var name = (cm[1] || "").trim();
+    if (name && !cseen[name.toLowerCase()]) { cseen[name.toLowerCase()] = true; names.push(name); }
+  }
+
+  return {
+    stops: stops, layovers: layovers, carriers: names,
+    selfTransfer: /self[\s-]?transfer|separate ticket/i.test(text),
+    origin: origin, dest: dest, connections: connections,
+  };
+}
+
 function parseCard(cardEl: HTMLElement): Card | null {
+  if (isItinerary(cardEl)) return parseItinerary(cardEl);
   var r = route();
   var text = cardEl.innerText || cardEl.textContent || "";
   if (/\bnon[\s-]?stop\b/i.test(text)) return null;
@@ -104,4 +160,13 @@ registerAdapter({
   },
   findCards: findCards,
   parseCard: parseCard,
+  badgeInline: true,
+  skipRot: function () { return /\/config\//.test(location.pathname); },
+  badgeAnchor: function (cardEl) {
+    if (isItinerary(cardEl)) {
+      var top = cardEl.querySelector('[class*="LegSummary_container"]');
+      if (top) return top as HTMLElement;
+    }
+    return cardEl;
+  },
 });
