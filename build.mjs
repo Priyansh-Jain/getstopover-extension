@@ -10,6 +10,7 @@ const common = {
 
 const entries = [
   { entryPoints: ["src/core/main.ts"], outfile: "dist/content.js" },
+  { entryPoints: ["src/kiwi-main.ts"], outfile: "dist/kiwi-main.js" },
   { entryPoints: ["popup/popup.ts"], outfile: "dist/popup.js" },
 ];
 
@@ -21,5 +22,5 @@ if (process.argv.includes("--watch")) {
   console.log("watching for changes…");
 } else {
   await Promise.all(entries.map((e) => build({ ...common, ...e })));
-  console.log("built dist/content.js + dist/popup.js");
+  console.log("built dist/content.js + dist/kiwi-main.js + dist/popup.js");
 }

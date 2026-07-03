@@ -1,4 +1,5 @@
-import type { Card } from "../types";
+import type { Cabin, Card } from "../types";
+import { cabinFromLabel } from "../core/cabin";
 import { programs } from "../data/programs";
 import { naStopsFromConns } from "../data/airports-na";
 import { registerAdapter } from "../core/scanner";
@@ -31,9 +32,11 @@ function connectionsFrom(text: string, origin: string | null, dest: string | nul
   var re = /(\d+h(?:\s*\d+m)?|\d+m)\s+in\s+([A-Z]{3})\b/g, m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     var code = m[2];
-    if (code === origin || code === dest || seen[code]) continue;
-    seen[code] = true;
-    out.push({ code: code, min: durMin(m[1]) });
+    if (code === origin || code === dest) continue;
+    var min = durMin(m[1]);
+    if (seen[code + "_" + min]) continue;
+    seen[code + "_" + min] = true;
+    out.push({ code: code, min: min });
   }
   return out;
 }
@@ -73,6 +76,13 @@ function parseCard(card: HTMLElement): Card | null {
   };
 }
 
+function searchCabin(): Cabin | null {
+  var m = location.search.match(/cabinclass[^a-z]{0,3}(coach|economy|premium|business|first)/i);
+  if (m) return cabinFromLabel(m[1]);
+  var t = (document.body.innerText || "").slice(0, 4000).match(/travell?ers?,\s*(premium economy|economy|business|first)/i);
+  return t ? cabinFromLabel(t[1]) : null;
+}
+
 registerAdapter({
   id: "expedia",
   matches: function () {
@@ -80,6 +90,7 @@ registerAdapter({
   },
   findCards: findCards,
   parseCard: parseCard,
+  searchCabin: searchCabin,
   badgeInline: true,
   badgeAnchor: function (cardEl) {
     var box = cardEl.firstElementChild;

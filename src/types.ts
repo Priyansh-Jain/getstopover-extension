@@ -1,5 +1,7 @@
 export type Confidence = "green" | "amber" | "grey";
 
+export type Cabin = "economy" | "premium" | "business" | "first";
+
 export type VisaStatus =
   | "free"
   | "voa"
@@ -29,6 +31,7 @@ export interface Program {
   hotelStar: number | null;
   freeTours: boolean;
   freeVisa: boolean;
+  oncePerTrip?: boolean;
   hotelValueUSD: number;
   tourMinH: number | null;
   tourMaxH: number | null;
@@ -85,6 +88,9 @@ export interface Verdict {
   reasons: string[];
   otherHubs?: string[];
   selfTransfer?: boolean;
+  oncePerTrip?: boolean;
+  legStops?: { layoverMin: number; mode: "hotel" | "tour" }[];
+  otherVerdicts?: Verdict[];
 }
 
 export interface Card {
@@ -105,6 +111,10 @@ export interface RiskVerdict {
   city: string;
   layoverMin?: number;
   reasons: string[];
+  hubCount?: number;
+  stopsLabel?: string;
+  tightNote?: string;
+  countryLabel?: string;
 }
 
 export interface FitVerdict {
@@ -135,7 +145,15 @@ export interface Adapter {
   badgePos?: "top" | "bottom";
   badgeAnchor?: (cardEl: HTMLElement) => HTMLElement | null;
   badgeInline?: boolean;
+  badgeAppendInline?: boolean;
+  badgeAlignImg?: boolean;
   skipRot?: () => boolean;
+  searchCabin?: () => Cabin | null;
+  signature?: (card: Card) => string | null;
+  findSelected?: () => HTMLElement[];
+  markBooking?: (v: Verdict, card?: HTMLElement) => void;
+  markBookingWarning?: (kind: "risk" | "bags" | "fit", data: RiskVerdict | BagVerdict | FitVerdict, card?: HTMLElement) => void;
+  skipSelectedChip?: boolean;
 }
 
 export interface Settings {

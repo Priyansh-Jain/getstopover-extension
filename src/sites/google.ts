@@ -10,10 +10,11 @@
  * layover is only recorded when it sits immediately after a duration, so the
  * total trip duration is never mistaken for a layover. Fails SAFE to grey/no-badge.
  */
-import type { Card } from "../types";
+import type { BagVerdict, Cabin, Card, FitVerdict, RiskVerdict, Verdict } from "../types";
 import { programs } from "../data/programs";
 import { naStopsFromConns } from "../data/airports-na";
 import { registerAdapter } from "../core/scanner";
+import { badge } from "../core/badge";
 
 var cityMap: Record<string, string> = {}; // lowercased city name -> hub code
 var codeSet: Record<string, boolean> = {}; // hub code -> true
@@ -25,6 +26,7 @@ programs.forEach(function (p) {
 });
 
 function findCards(): HTMLElement[] {
+  if (/\/travel\/flights\/booking/.test(location.pathname)) return [];
   var nodes = document.querySelectorAll('li.pIav2d, ul.Rk10dc > li, [role="listitem"]');
   var out: HTMLElement[] = [], seen: HTMLElement[] = [];
   for (var i = 0; i < nodes.length; i++) {
@@ -37,10 +39,15 @@ function findCards(): HTMLElement[] {
 // Longest aria-label on or under the element (Google's full itinerary string).
 function bestLabel(el: HTMLElement): string {
   var best = el.getAttribute("aria-label") || "";
+  var layovers: string[] = [];
   var nodes = el.querySelectorAll("[aria-label]");
   for (var i = 0; i < nodes.length; i++) {
     var l = nodes[i].getAttribute("aria-label") || "";
     if (l.length > best.length) best = l;
+    if (/layover \(/i.test(l) && layovers.indexOf(l) === -1) layovers.push(l);
+  }
+  for (var j = 0; j < layovers.length; j++) {
+    if (best.indexOf(layovers[j]) === -1) best += " " + layovers[j];
   }
   return best;
 }
@@ -164,9 +171,130 @@ function parseCard(el: HTMLElement): Card | null {
   }
   parsed.origin = origin || undefined;
   parsed.dest = dest || undefined;
-  parsed.connections = connectionsFrom(text, label, origin, dest);
-  parsed.naStops = naStopsFromConns(parsed.connections);
-  return (parsed.stops.length || parsed.naStops.length || parsed.connections.length) ? parsed : null;
+  var conns = connectionsFrom(text, label, origin, dest);
+  parsed.connections = conns;
+  conns.forEach(function (c) {
+    if (c.min > 0 && codeSet[c.code]) {
+      if (parsed.stops.indexOf(c.code) === -1) parsed.stops.push(c.code);
+      if (parsed.layovers[c.code] == null) parsed.layovers[c.code] = c.min;
+    }
+  });
+  parsed.naStops = naStopsFromConns(conns);
+  return (parsed.stops.length || parsed.naStops.length || conns.length) ? parsed : null;
+}
+
+function signature(card: Card): string | null {
+  if (!card.origin || !card.dest) return null;
+  var set: Record<string, boolean> = {};
+  (card.stops || []).forEach(function (s) { set[s] = true; });
+  (card.connections || []).forEach(function (c) { set[c.code] = true; });
+  var hubs = Object.keys(set).sort();
+  if (!hubs.length) return null;
+  var carrier = (card.carriers || []).map(function (c) { return c.toLowerCase(); }).sort().join(",");
+  return card.origin + ">" + card.dest + "|" + hubs.join(",") + "|" + carrier;
+}
+
+function findSelected(): HTMLElement[] {
+  if (!/\/travel\/flights\/booking/.test(location.pathname)) return [];
+  var heads = document.querySelectorAll('h1, h2, h3, h4, [role="heading"]');
+  for (var i = 0; i < heads.length; i++) {
+    if (!/selected flight/i.test(heads[i].textContent || "")) continue;
+    var scope = heads[i].parentElement;
+    var up = 0;
+    while (scope && up < 6) {
+      var nodes = scope.querySelectorAll("li, div");
+      var all: HTMLElement[] = [];
+      for (var j = 0; j < nodes.length; j++) {
+        var el = nodes[j] as HTMLElement;
+        var t = el.innerText || "";
+        if (t.length < 320 && !/selected flight/i.test(t) && /\b[A-Z]{3}[–-][A-Z]{3}\b/.test(t) && /\bstop/i.test(t)) all.push(el);
+      }
+      if (all.length) {
+        return all.filter(function (card) {
+          return !all.some(function (other) { return other !== card && card.contains(other); });
+        }).slice(0, 4);
+      }
+      scope = scope.parentElement;
+      up++;
+    }
+  }
+  return [];
+}
+
+function stylePill(pill: HTMLElement): void {
+  var c = badge.toneColors("amber", badge.pageDark());
+  pill.style.cssText = "display:inline-block;margin-left:6px;vertical-align:middle;" +
+    "color:" + c.fg + ";background:" + c.bg + ";border-radius:4px;padding:1px 6px;font-family:Roboto,'Helvetica Neue',Arial,sans-serif;" +
+    "font-size:12px;font-weight:700;line-height:16px;white-space:nowrap";
+}
+
+function bannerAnchor(card: HTMLElement | undefined): HTMLElement | null {
+  if (!card) return null;
+  var p = card.parentElement;
+  var gp = p ? p.parentElement : null;
+  return gp || p || card;
+}
+
+function insertBanner(pill: HTMLElement, card?: HTMLElement): void {
+  var anchor = bannerAnchor(card);
+  if (!anchor || !anchor.parentElement) return;
+  var prev = anchor.previousElementSibling;
+  if (prev && prev.hasAttribute("data-getstopover-banner")) return;
+  var wrap = document.createElement("div");
+  wrap.setAttribute("data-getstopover-banner", "1");
+  // Negative top margin counteracts the booking card's own top padding so the
+  // banner hugs the top like the results-list chip, instead of floating below it.
+  wrap.style.cssText = "margin:-10px 16px 6px;display:flex";
+  wrap.appendChild(pill);
+  anchor.insertAdjacentElement("beforebegin", wrap);
+  try {
+    var l = badge.logoLeft(anchor);
+    if (l != null) {
+      var delta = Math.round(l - wrap.getBoundingClientRect().left);
+      if (delta > 0 && delta < 160) wrap.style.marginLeft = (16 + delta) + "px";
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function markBookingWarning(kind: "risk" | "bags" | "fit", data: RiskVerdict | BagVerdict | FitVerdict, card?: HTMLElement): void {
+  if (!/\/travel\/flights\/booking/.test(location.pathname)) return;
+  insertBanner(badge.buildWarnPill(kind, data, "8px", badge.pageDark()), card);
+}
+
+function markBooking(v: Verdict, card?: HTMLElement): void {
+  if (!/\/travel\/flights\/booking/.test(location.pathname)) return;
+  insertBanner(badge.buildPill(v, "8px", badge.pageDark()), card);
+  var existing = document.querySelector("[data-getstopover-bookmark]") as HTMLElement | null;
+  if (existing) { stylePill(existing); return; }
+  var spans = document.querySelectorAll("span, small, div");
+  for (var i = 0; i < spans.length; i++) {
+    var tag = spans[i] as HTMLElement;
+    if (tag.children.length !== 0 || (tag.textContent || "").trim() !== "Airline") continue;
+    var row: HTMLElement | null = tag.parentElement;
+    var hops = 0;
+    while (row && hops < 5 && !/Book with/i.test(row.innerText || "")) { row = row.parentElement; hops++; }
+    if (!row) continue;
+    if (v.airline && (row.innerText || "").toLowerCase().indexOf(v.airline.toLowerCase()) === -1) continue;
+    var pill = document.createElement("span");
+    pill.setAttribute("data-getstopover-bookmark", "1");
+    pill.textContent = "Stopover";
+    stylePill(pill);
+    tag.insertAdjacentElement("afterend", pill);
+    return;
+  }
+}
+
+var CABIN_NAMES: Record<string, Cabin> = {
+  "economy": "economy", "premium economy": "premium", "business": "business", "first": "first",
+};
+
+function searchCabin(): Cabin | null {
+  var els = document.querySelectorAll('[role="combobox"],[aria-haspopup="listbox"],[aria-haspopup="menu"],[role="button"]');
+  for (var i = 0; i < els.length && i < 400; i++) {
+    var t = (els[i].textContent || "").trim().toLowerCase();
+    if (CABIN_NAMES[t]) return CABIN_NAMES[t];
+  }
+  return null;
 }
 
 registerAdapter({
@@ -178,9 +306,18 @@ registerAdapter({
   findCards: findCards,
   parseCard: parseCard,
   badgeInline: true,
+  badgeAlignImg: true,
+  skipRot: function () { return /\/travel\/flights\/booking/.test(location.pathname); },
   badgeAnchor: function (cardEl) {
+    if (/\/travel\/flights\/booking/.test(location.pathname)) return cardEl;
     var box = cardEl.firstElementChild;
     return (box && box.tagName === "DIV" ? box : cardEl) as HTMLElement;
   },
+  searchCabin: searchCabin,
+  signature: signature,
+  findSelected: findSelected,
+  markBooking: markBooking,
+  markBookingWarning: markBookingWarning,
+  skipSelectedChip: true,
   _parse: parse, // exposed for unit testing
 });

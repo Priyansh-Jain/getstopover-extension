@@ -14,7 +14,8 @@
  * (tourMinH..tourMaxH). A layover too short for the hotel can still qualify for
  * the tour, so we surface the tour instead of suppressing the result.
  */
-import type { Card, Confidence, Program, Verdict, VisaInfo } from "../types";
+import type { Cabin, Card, Confidence, Program, Verdict, VisaInfo } from "../types";
+import { economyEligible } from "./cabin";
 import { programs } from "../data/programs";
 import { transit } from "../data/transit";
 import { visa } from "../data/visa";
@@ -30,7 +31,7 @@ function normName(s: string): string {
   return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function usableHours(airport: string, layoverMin: number | null): number | null {
+function usableParts(airport: string, layoverMin: number | null): { exit: number; toCity: number; buffer: number; net: number } | null {
   if (layoverMin == null) return null;
   var t = transit[airport] || transit._default;
   if (!t) return null;
@@ -38,11 +39,17 @@ function usableHours(airport: string, layoverMin: number | null): number | null 
   var adj = settings.bufferAdjustMin || 0;
   var buffer = Math.max(60, t.buffer + adj);
   var net = layoverMin - t.exit - 2 * t.toCity - buffer;
-  return net <= 0 ? 0 : Math.round((net / 60) * 10) / 10;
+  return { exit: t.exit, toCity: t.toCity, buffer: buffer, net: net <= 0 ? 0 : net };
+}
+
+function usableHours(airport: string, layoverMin: number | null): number | null {
+  var p = usableParts(airport, layoverMin);
+  if (!p) return null;
+  return p.net <= 0 ? 0 : Math.round((p.net / 60) * 10) / 10;
 }
 
 function carrierTokens(s: string): string[] {
-  return normName(s).replace(/\b(airlines|airways|airline|aviation)\b/g, " ")
+  return normName(s).replace(/\b(airlines|airways|airline|aviation|air)\b/g, " ")
     .split(/\s+/).filter(function (t) { return t.length >= 2; });
 }
 // Whole-token match, not substring: identical token sets, or a multi-token
@@ -83,24 +90,70 @@ function visaVerdict(country: string): VisaInfo {
   return { status: "unknown", notes: v.notes };
 }
 
+function perLegLayovers(card: Card, code: string): (number | null)[] {
+  var mins: number[] = [];
+  (card.connections || []).forEach(function (c) { if (c.code === code && c.min > 0) mins.push(c.min); });
+  if (!mins.length && card.layovers && card.layovers[code] != null) mins.push(card.layovers[code]);
+  return mins.length ? mins : [null];
+}
+
+function chooseLayover(mins: (number | null)[], p: Program): number | null {
+  var hotelMin = p.minH == null ? 0 : p.minH;
+  var hotelMax = p.maxH == null ? 999 : p.maxH;
+  var hasTour = p.freeTours && p.tourMinH != null;
+  var tourMin = hasTour ? p.tourMinH : null;
+  var tourMax = hasTour ? p.tourMaxH : null;
+  var inHotel: number | null = null, inTour: number | null = null, readable: number | null = null;
+  for (var i = 0; i < mins.length; i++) {
+    var m = mins[i];
+    if (m == null) continue;
+    if (readable == null) readable = m;
+    var h = m / 60;
+    if (h >= hotelMin && h <= hotelMax) { if (inHotel == null) inHotel = m; }
+    else if (hasTour && tourMin != null && tourMax != null && h >= tourMin && h <= tourMax) { if (inTour == null) inTour = m; }
+  }
+  return inHotel != null ? inHotel : inTour != null ? inTour : readable;
+}
+
+function qualifyingLegs(mins: (number | null)[], p: Program): { layoverMin: number; mode: "hotel" | "tour" }[] {
+  var hotelMin = p.minH == null ? 0 : p.minH;
+  var hotelMax = p.maxH == null ? 999 : p.maxH;
+  var hasTour = p.freeTours && p.tourMinH != null;
+  var tourMin = hasTour ? p.tourMinH : null;
+  var tourMax = hasTour ? p.tourMaxH : null;
+  var out: { layoverMin: number; mode: "hotel" | "tour" }[] = [];
+  for (var i = 0; i < mins.length; i++) {
+    var m = mins[i];
+    if (m == null) continue;
+    var h = m / 60;
+    if (h >= hotelMin && h <= hotelMax) out.push({ layoverMin: m, mode: "hotel" });
+    else if (hasTour && tourMin != null && tourMax != null && h >= tourMin && h <= tourMax) out.push({ layoverMin: m, mode: "tour" });
+  }
+  return out;
+}
+
 // card = { stops:[CODE], layovers:{CODE:minutes}, carriers:[name] }
-function evaluateCard(card: Card | null): Verdict | null {
+function evaluateCard(card: Card | null, cabin?: Cabin | null): Verdict | null {
   if (!card || !card.stops) return null;
   var stops = card.stops;
-  var layovers = card.layovers;
   var carriers = card.carriers;
   var selfTransfer = !!card.selfTransfer;
   var verdicts: Verdict[] = [];
+  var seenHub: Record<string, boolean> = {};
 
   stops.forEach(function (code) {
+    if (seenHub[code]) return;
+    seenHub[code] = true;
     var list = byAirport[code];
     if (!list) return;
-    var layoverMin: number | null = layovers && layovers[code] != null ? layovers[code] : null;
+    var mins = perLegLayovers(card, code);
 
     list.forEach(function (p) {
       if (p.status !== "active") return;
       if (p.type === "pass") return;
       if (p.minH == null && p.maxH == null) return;
+      if ((cabin === "economy" || cabin === "premium") && p.cabins.length && !economyEligible(p.cabins)) return;
+      var layoverMin: number | null = chooseLayover(mins, p);
 
       var hotelMin = p.minH == null ? 0 : p.minH;
       var hotelMax = p.maxH == null ? 999 : p.maxH;
@@ -190,6 +243,8 @@ function evaluateCard(card: Card | null): Verdict | null {
         windowH: [hotelMin, hotelMax],
         reasons: reasons,
         selfTransfer: stIneligible,
+        oncePerTrip: !!p.oncePerTrip,
+        legStops: qualifyingLegs(mins, p),
       });
     });
   });
@@ -201,18 +256,19 @@ function evaluateCard(card: Card | null): Verdict | null {
     return (b.hotelValueUSD || 0) - (a.hotelValueUSD || 0);
   });
   var primary = verdicts[0];
-  var otherHubs: string[] = [], seenCountry: Record<string, boolean> = {};
+  var otherHubs: string[] = [], otherVerdicts: Verdict[] = [], seenCountry: Record<string, boolean> = {};
   seenCountry[primary.country] = true;
   verdicts.forEach(function (v) {
-    if (!seenCountry[v.country]) { seenCountry[v.country] = true; otherHubs.push(v.city); }
+    if (!seenCountry[v.country]) { seenCountry[v.country] = true; otherHubs.push(v.city); otherVerdicts.push(v); }
   });
-  if (otherHubs.length) primary.otherHubs = otherHubs;
+  if (otherHubs.length) { primary.otherHubs = otherHubs; primary.otherVerdicts = otherVerdicts; }
   return primary;
 }
 
 export const engine = {
   evaluateCard: evaluateCard,
   usableHours: usableHours,
+  usableParts: usableParts,
   visaVerdict: visaVerdict,
   byAirport: byAirport,
 };

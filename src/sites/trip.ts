@@ -1,4 +1,5 @@
-import type { Card } from "../types";
+import type { Cabin, Card } from "../types";
+import { cabinFromLabel } from "../core/cabin";
 import { programs } from "../data/programs";
 import { cityToCode } from "../data/city-codes";
 import { naStopsFromConns } from "../data/airports-na";
@@ -33,9 +34,11 @@ function connectionsFrom(text: string, origin: string | null, dest: string | nul
   var re = /(\d+h\s*\d*m|\d+m)\s+in\s+([^\n]+)/g, m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     var code = cityToCode(m[2]);
-    if (!code || code === origin || code === dest || seen[code]) continue;
-    seen[code] = true;
-    out.push({ code: code, min: durMin(m[1]) });
+    if (!code || code === origin || code === dest) continue;
+    var min = durMin(m[1]);
+    if (seen[code + "_" + min]) continue;
+    seen[code + "_" + min] = true;
+    out.push({ code: code, min: min });
   }
   return out;
 }
@@ -75,6 +78,15 @@ function parseCard(card: HTMLElement): Card | null {
   };
 }
 
+var CLASS_MAP: Record<string, Cabin> = { y: "economy", ys: "economy", s: "premium", c: "business", cf: "business", f: "first" };
+
+function searchCabin(): Cabin | null {
+  var cls = (new URLSearchParams(location.search).get("class") || "").toLowerCase();
+  if (CLASS_MAP[cls]) return CLASS_MAP[cls];
+  var m = (document.body.innerText || "").slice(0, 3000).match(/\d+\s*adults?[^\n]{0,60}/i);
+  return m ? cabinFromLabel(m[0]) : null;
+}
+
 registerAdapter({
   id: "trip",
   matches: function () {
@@ -82,5 +94,9 @@ registerAdapter({
   },
   findCards: findCards,
   parseCard: parseCard,
-  badgeInline: true,
+  searchCabin: searchCabin,
+  badgeAnchor: function (cardEl) {
+    return cardEl.querySelector('[class*="f-info-head__labels-unifyWrapper"]') as HTMLElement | null;
+  },
+  badgeAppendInline: true,
 });

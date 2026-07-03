@@ -4,13 +4,17 @@
  * Connection detection is scoped to stop-specific elements AND excludes the
  * searched origin/destination, so flying TO a hub no longer false-badges.
  * The results-list card exposes only the TOTAL trip time, not per-stop layover.
- * The expanded itinerary view does expose it (e.g. "Connection in airport. X hours
- * Y minutes between flights"), so we read layover duration there instead.
+ * The booking (DayView /config) page's flight-details panel does expose it
+ * (e.g. "Connection in airport. X hours Y minutes between flights"), so we read
+ * layover duration there and upgrade the grey "stopover possible" chip to a real
+ * verdict. That panel lives in per-leg [data-testid="itinerary-leg-<id>"] wrappers.
  */
-import type { Card } from "../types";
+import type { Cabin, Card, Verdict } from "../types";
+import { cabinFromLabel } from "../core/cabin";
 import { programs } from "../data/programs";
 import { naStopsFromCodes } from "../data/airports-na";
 import { registerAdapter } from "../core/scanner";
+import { badge } from "../core/badge";
 
 interface Route {
   origin: string | null;
@@ -87,7 +91,7 @@ function naStopCodes(cardEl: HTMLElement, r: Route): string[] {
 
 function detailItineraries(): HTMLElement[] {
   var out: HTMLElement[] = [];
-  var wraps = document.querySelectorAll('[class*="Itinerary_itineraryWrapper"]');
+  var wraps = document.querySelectorAll('[data-testid^="itinerary-leg-"]');
   for (var i = 0; i < wraps.length; i++) {
     var el = wraps[i] as HTMLElement;
     if (/between flights/i.test(el.textContent || "")) out.push(el);
@@ -96,8 +100,8 @@ function detailItineraries(): HTMLElement[] {
 }
 
 function isItinerary(el: HTMLElement): boolean {
-  var cls = typeof el.className === "string" ? el.className : "";
-  return /Itinerary_itineraryWrapper/.test(cls) && /between flights/i.test(el.textContent || "");
+  var tid = el.getAttribute ? (el.getAttribute("data-testid") || "") : "";
+  return /^itinerary-leg-/.test(tid) && /between flights/i.test(el.textContent || "");
 }
 
 function parseItinerary(wrapEl: HTMLElement): Card | null {
@@ -152,6 +156,49 @@ function parseCard(cardEl: HTMLElement): Card | null {
   };
 }
 
+function searchCabin(): Cabin | null {
+  var cc = new URLSearchParams(location.search).get("cabinclass");
+  return cc ? cabinFromLabel(cc) : "economy";
+}
+
+function isBookingPage(): boolean {
+  return /\/config\//.test(location.pathname);
+}
+
+function signature(card: Card): string | null {
+  if (!card || !card.stops || !card.stops.length) return null;
+  return (card.origin || "") + ">" + card.stops.join("-") + ">" + (card.dest || "");
+}
+
+// Does a booking-page provider row (its text starts with the seller name) sell
+// the stopover airline directly? The free stopover perk only survives a direct
+// booking, so we only tag the airline's own row.
+function agentAirlineMatches(agentText: string, airline: string): boolean {
+  var pa = (agentText || "").toLowerCase();
+  var toks = (airline || "").toLowerCase()
+    .replace(/\b(airlines?|airways?|air)\b/g, " ")
+    .split(/\s+/).filter(function (t) { return t.length >= 2; });
+  if (!toks.length) return false;
+  return toks.every(function (t) { return pa.indexOf(t) >= 0; });
+}
+
+// Booking (DayView) page only: drop a compact "Stopover" chip beside the
+// "Airline" tag on the airline's own provider row in the "Book your ticket"
+// list, so the free-stopover perk points at the deal that actually keeps it.
+function markBooking(v: Verdict): void {
+  if (!isBookingPage() || v.selfTransfer) return;
+  var tags = document.querySelectorAll('[class*="AgentDetails_agentDetails"] [class*="BpkBadge"]');
+  for (var i = 0; i < tags.length; i++) {
+    var tag = tags[i] as HTMLElement;
+    if ((tag.textContent || "").trim().toLowerCase() !== "airline") continue;
+    var agent = tag.closest('[class*="AgentDetails_agentDetails"]') as HTMLElement | null;
+    if (!agent) continue;
+    if (!agentAirlineMatches(agent.textContent || "", v.airline)) continue;
+    if (agent.querySelector("[data-getstopover-badge]")) continue;
+    tag.insertAdjacentElement("afterend", badge.stopoverTag(v, false));
+  }
+}
+
 registerAdapter({
   id: "skyscanner",
   matches: function () {
@@ -160,13 +207,19 @@ registerAdapter({
   },
   findCards: findCards,
   parseCard: parseCard,
+  searchCabin: searchCabin,
   badgeInline: true,
-  skipRot: function () { return /\/config\//.test(location.pathname); },
+  skipRot: function () { return isBookingPage(); },
   badgeAnchor: function (cardEl) {
     if (isItinerary(cardEl)) {
-      var top = cardEl.querySelector('[class*="LegSummary_container"]');
+      var top = cardEl.querySelector('[data-testid="leg-summary"]') ||
+        cardEl.querySelector('[class*="LegSummary_container"]');
       if (top) return top as HTMLElement;
     }
     return cardEl;
   },
+  findSelected: function () { return isBookingPage() ? detailItineraries() : []; },
+  signature: signature,
+  markBooking: markBooking,
+  skipSelectedChip: true,
 });
