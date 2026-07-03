@@ -78,7 +78,8 @@ function evaluate(card: Card | null): RiskVerdict | null {
   return {
     kind: first.country === "US" ? "us-transit" : "ca-transit", country: first.country,
     airport: first.code, city: cityLabel,
-    layoverMin: !multi && first.tight ? (first.lay as number) : undefined, reasons: reasons,
+    layoverMin: !multi && first.tight ? (first.lay as number) : undefined,
+    hubLayoverMin: !multi && first.lay != null ? first.lay : undefined, reasons: reasons,
     hubCount: hubs.length, stopsLabel: stopsLabel, tightNote: tightNote, countryLabel: countryLabel,
   };
 }

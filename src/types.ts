@@ -110,6 +110,7 @@ export interface RiskVerdict {
   airport: string;
   city: string;
   layoverMin?: number;
+  hubLayoverMin?: number;
   reasons: string[];
   hubCount?: number;
   stopsLabel?: string;

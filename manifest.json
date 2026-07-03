@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GetStopover – Stopover, Transit Visa & Layover Helper",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "See free-hotel stopovers, transit-visa traps, self-transfers and tight layovers flagged right on your flight search results.",
   "icons": {
     "16": "icons/icon16.png",
